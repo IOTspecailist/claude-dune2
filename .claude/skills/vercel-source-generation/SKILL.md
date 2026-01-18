@@ -692,6 +692,101 @@ export async function middleware(request: NextRequest) {
 
 ---
 
+## 보안 정보 처리 규칙
+
+다음 규칙은 민감한 보안 정보를 안전하게 처리하기 위한 필수 지침입니다.
+
+### 1. 로그에 보안 정보 저장 금지
+
+보안에 관련된 민감한 정보는 절대로 로그에 저장하지 않습니다.
+
+**저장 금지 대상:**
+- `.env.local` 파일 내용
+- API 키, 시크릿 키
+- 데이터베이스 접속 정보 (POSTGRES_URL, POSTGRES_PASSWORD 등)
+- 인증 토큰 (JWT, 세션 토큰 등)
+- 사용자 비밀번호 (해시 포함)
+- 개인식별정보 (주민번호, 카드번호 등)
+
+```typescript
+// NEVER log sensitive data
+console.log('DB URL:', process.env.POSTGRES_URL);        // WRONG
+console.log('User password:', user.password);            // WRONG
+console.log('API Key:', process.env.STRIPE_SECRET_KEY);  // WRONG
+
+// OK - log only non-sensitive context
+console.log('Database connection established');          // OK
+console.log('User login attempt:', { userId: user.id }); // OK
+```
+
+### 2. 보안 정보 출력 금지
+
+보안에 관련된 정보는 화면, 응답, 에러 메시지 등 어떤 형태로도 출력하지 않습니다.
+
+**출력 금지 대상:**
+- 환경 변수 값
+- 데이터베이스 연결 문자열
+- 내부 시스템 경로
+- 스택 트레이스의 민감한 정보
+- 암호화 키, 솔트 값
+
+```typescript
+// WRONG - exposing sensitive info in responses
+return NextResponse.json({
+  error: 'Database error',
+  connectionString: process.env.POSTGRES_URL,  // NEVER
+  stack: error.stack,                          // NEVER in production
+});
+
+// OK - generic error response
+return NextResponse.json({
+  error: 'Internal server error',
+  code: 'DB_CONNECTION_ERROR',
+}, { status: 500 });
+```
+
+### 3. Git에 보안 정보 업로드 금지
+
+보안에 관련된 파일 및 정보는 절대로 git 저장소에 커밋하지 않습니다.
+
+**Git 저장소 업로드 금지 대상:**
+- `.env.local`, `.env.development.local`, `.env.production.local`
+- 실제 값이 포함된 환경 변수 파일
+- 인증서 파일 (`.pem`, `.key`, `.crt`)
+- 비밀번호나 API 키가 하드코딩된 파일
+
+**.gitignore 필수 포함 항목:**
+```gitignore
+# Environment files with secrets
+.env.local
+.env.*.local
+.env.development
+.env.production
+
+# Certificate files
+*.pem
+*.key
+*.crt
+
+# IDE and system files
+.idea/
+.vscode/settings.json
+*.log
+```
+
+**커밋 전 체크리스트:**
+- [ ] `.env.local` 파일이 `.gitignore`에 포함되어 있는가?
+- [ ] 코드에 하드코딩된 시크릿이 없는가?
+- [ ] `.env.example`에 실제 값 대신 플레이스홀더만 있는가?
+- [ ] `git diff`에서 민감한 정보가 노출되지 않는가?
+
+```bash
+# Before committing, always check for secrets
+git diff --staged | grep -i -E "(password|secret|key|token|api_key)"
+```
+
+---
+
 ## Quick Reference
 
 ### File Creation Checklist
